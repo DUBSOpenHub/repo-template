@@ -1,0 +1,25 @@
+{
+  "name": "universal-test-suite",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Universal, agent-friendly test suite template",
+  "scripts": {
+    "test": "jest --verbose",
+    "test:unit": "jest --verbose --testPathPattern=unit",
+    "test:integration": "jest --verbose --testPathPattern=integration",
+    "test:edge": "jest --verbose --testPathPattern=edge-cases",
+    "test:regression": "jest --verbose --testPathPattern=regression",
+    "test:ci": "jest --ci --coverage --reporters=default --reporters=jest-junit --forceExit",
+    "test:watch": "jest --watch"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-junit": "^16.0.0"
+  },
+  "jest-junit": {
+    "outputDirectory": "./reports",
+    "outputName": "junit.xml",
+    "classNameTemplate": "{classname}",
+    "titleTemplate": "{title}"
+  }
+}

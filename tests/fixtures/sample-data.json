@@ -1,0 +1,28 @@
+{
+  "users": [
+    {"id": "usr-001", "name": "Alice", "email": "alice@test.com", "status": "active"},
+    {"id": "usr-002", "name": "Bob", "email": "bob@test.com", "status": "active"},
+    {"id": "usr-003", "name": "Charlie", "email": "charlie@test.com", "status": "inactive"}
+  ],
+  "configs": [
+    {"name": "production", "port": 443, "retries": 3},
+    {"name": "development", "port": 3000, "retries": 0},
+    {"name": "testing", "port": 8080, "retries": 1}
+  ],
+  "versions": ["1.0.0", "v1.2.3", "2.0.0-beta", "v3.0.0"],
+  "edge_case_strings": [
+    "",
+    " ",
+    "  \t\n  ",
+    "héllo wörld",
+    "emoji 😀🎉",
+    "null",
+    "undefined",
+    "true",
+    "false",
+    "0",
+    "<script>alert('xss')</script>",
+    "Robert'); DROP TABLE users;--",
+    "a".repeat ? "a" : "aaaaaaaaaaaaaaaaaaaaa"
+  ]
+}

@@ -1,0 +1,7 @@
+tests/js/node_modules/
+tests/python/__pycache__/
+tests/python/.pytest_cache/
+tests/js/coverage/
+tests/js/reports/
+tests/python/reports/
+**/__pycache__/

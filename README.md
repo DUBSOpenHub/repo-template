@@ -6,6 +6,18 @@
 
 <!-- Add setup instructions -->
 
+## Testing
+
+This repo includes a deterministic test suite (JS + Python) with anti-flake guardrails. See [`tests/README.md`](tests/README.md) for details.
+
+```bash
+# JavaScript
+cd tests/js && npm install && npm test
+
+# Python
+cd tests/python && pip install -r requirements.txt && pytest
+```
+
 ## Contributing
 
 This project welcomes contributions and suggestions.
