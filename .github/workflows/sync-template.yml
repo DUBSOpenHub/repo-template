@@ -147,12 +147,9 @@ jobs:
             # Create PR with changes
             git checkout -b "$BRANCH"
             git add -A
-            git commit -m "Sync SFI/RAI/Accessibility standards from template
-
-Auto-synced from DUBSOpenHub/repo-template.
-Changes: $CHANGES file(s) updated.
-
-Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+            git commit -m "Sync SFI/RAI/Accessibility standards from template" \
+              -m "Auto-synced from DUBSOpenHub/repo-template. Changes: $CHANGES file(s) updated." \
+              -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
             
             git push origin "$BRANCH" --force
             
@@ -161,15 +158,15 @@ Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
             if [ -n "$EXISTING_PR" ]; then
               echo "  📝 Updated existing PR #$EXISTING_PR"
             else
+              PR_BODY=$(printf '%s\n\n%s\n%s\n%s\n\n%s' \
+                "Automated sync from [repo-template](https://github.com/DUBSOpenHub/repo-template)." \
+                "## Changes" \
+                "- Synced SFI, Responsible AI, and Accessibility standards" \
+                "- $CHANGES file(s) updated" \
+                "This PR was created automatically when the template was updated.")
               gh pr create --repo "$REPO" \
                 --title "Sync SFI/RAI/Accessibility standards from template" \
-                --body "Automated sync from [repo-template](https://github.com/DUBSOpenHub/repo-template).
-
-## Changes
-- Synced SFI, Responsible AI, and Accessibility standards
-- $CHANGES file(s) updated
-
-This PR was created automatically when the template was updated." \
+                --body "$PR_BODY" \
                 --head "$BRANCH" 2>/dev/null && echo "  📬 PR created" || echo "  ⚠️  PR creation failed"
             fi
             
