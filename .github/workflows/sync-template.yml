@@ -1,0 +1,181 @@
+name: Sync Template to Repos
+
+# Runs when template files are updated on main
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'SECURITY.md'
+      - '.github/copilot-instructions.md'
+
+  # Manual trigger with options
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview changes without applying'
+        type: boolean
+        default: true
+      repos:
+        description: 'Comma-separated repo names (empty = all)'
+        type: string
+        default: ''
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout template repo
+        uses: actions/checkout@v4
+        with:
+          path: template
+
+      - name: Discover repos
+        id: discover
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOS: ${{ github.event.inputs.repos }}
+        run: |
+          OWNER=$(gh api user -q '.login')
+          
+          if [ -n "$INPUT_REPOS" ]; then
+            # Use provided list
+            REPOS=$(echo "$INPUT_REPOS" | tr ',' '\n' | xargs -I{} echo "$OWNER/{}")
+          else
+            # Get all non-archived, non-template repos
+            REPOS=$(gh repo list "$OWNER" --no-archived --json name,isTemplate -q '.[] | select(.isTemplate == false) | "'"$OWNER"'/" + .name')
+          fi
+          
+          # Filter out the template repo itself
+          REPOS=$(echo "$REPOS" | grep -v "repo-template$" || true)
+          
+          COUNT=$(echo "$REPOS" | grep -c . || echo 0)
+          echo "Found $COUNT repos to sync"
+          echo "$REPOS"
+          
+          # Save as multiline output
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "repos<<$EOF" >> "$GITHUB_OUTPUT"
+          echo "$REPOS" >> "$GITHUB_OUTPUT"
+          echo "$EOF" >> "$GITHUB_OUTPUT"
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Sync template files
+        env:
+          GH_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          TEMPLATE_DIR="template"
+          BRANCH="template-sync"
+          
+          echo "${{ steps.discover.outputs.repos }}" | while read -r REPO; do
+            [ -z "$REPO" ] && continue
+            REPO_NAME=$(basename "$REPO")
+            echo ""
+            echo "=== $REPO ==="
+            
+            # Clone the target repo
+            gh repo clone "$REPO" "target-$REPO_NAME" -- --depth 1 2>/dev/null || {
+              echo "  ⚠️  Skip: cannot clone"
+              continue
+            }
+            
+            cd "target-$REPO_NAME"
+            CHANGES=0
+            
+            # Sync SECURITY.md (only if missing)
+            if [ ! -f "SECURITY.md" ]; then
+              cp "../$TEMPLATE_DIR/SECURITY.md" ./SECURITY.md
+              CHANGES=$((CHANGES + 1))
+              echo "  + SECURITY.md"
+            else
+              echo "  · SECURITY.md (exists, skipping)"
+            fi
+            
+            # Sync copilot-instructions sections (append if missing)
+            if [ -f ".github/copilot-instructions.md" ]; then
+              NEEDS_UPDATE=false
+              
+              if ! grep -qi "Secure Future Initiative" .github/copilot-instructions.md 2>/dev/null; then
+                # Extract SFI section from template
+                sed -n '/^## Security — Secure Future Initiative/,/^## [^S]/p' "../$TEMPLATE_DIR/.github/copilot-instructions.md" | head -n -1 >> .github/copilot-instructions.md
+                CHANGES=$((CHANGES + 1))
+                NEEDS_UPDATE=true
+                echo "  + SFI section"
+              fi
+              
+              if ! grep -qi "Responsible AI" .github/copilot-instructions.md 2>/dev/null; then
+                sed -n '/^## Responsible AI/,/^## [^R]/p' "../$TEMPLATE_DIR/.github/copilot-instructions.md" | head -n -1 >> .github/copilot-instructions.md
+                CHANGES=$((CHANGES + 1))
+                NEEDS_UPDATE=true
+                echo "  + RAI section"
+              fi
+              
+              if ! grep -qi "Accessibility\|WCAG\|a11y" .github/copilot-instructions.md 2>/dev/null; then
+                sed -n '/^## Accessibility/,$p' "../$TEMPLATE_DIR/.github/copilot-instructions.md" >> .github/copilot-instructions.md
+                CHANGES=$((CHANGES + 1))
+                NEEDS_UPDATE=true
+                echo "  + A11y section"
+              fi
+              
+              [ "$NEEDS_UPDATE" = "false" ] && echo "  · copilot-instructions.md (up to date)"
+            else
+              # No copilot-instructions at all — create .github dir and copy
+              mkdir -p .github
+              cp "../$TEMPLATE_DIR/.github/copilot-instructions.md" .github/copilot-instructions.md
+              CHANGES=$((CHANGES + 1))
+              echo "  + .github/copilot-instructions.md (new)"
+            fi
+            
+            if [ "$CHANGES" -eq 0 ]; then
+              echo "  ✅ Already in sync"
+              cd ..
+              rm -rf "target-$REPO_NAME"
+              continue
+            fi
+            
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "  🔍 DRY-RUN: $CHANGES changes would be made"
+              cd ..
+              rm -rf "target-$REPO_NAME"
+              continue
+            fi
+            
+            # Create PR with changes
+            git checkout -b "$BRANCH"
+            git add -A
+            git commit -m "Sync SFI/RAI/Accessibility standards from template
+
+Auto-synced from DUBSOpenHub/repo-template.
+Changes: $CHANGES file(s) updated.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+            
+            git push origin "$BRANCH" --force
+            
+            # Create or update PR
+            EXISTING_PR=$(gh pr list --repo "$REPO" --head "$BRANCH" --json number -q '.[0].number' 2>/dev/null)
+            if [ -n "$EXISTING_PR" ]; then
+              echo "  📝 Updated existing PR #$EXISTING_PR"
+            else
+              gh pr create --repo "$REPO" \
+                --title "Sync SFI/RAI/Accessibility standards from template" \
+                --body "Automated sync from [repo-template](https://github.com/DUBSOpenHub/repo-template).
+
+## Changes
+- Synced SFI, Responsible AI, and Accessibility standards
+- $CHANGES file(s) updated
+
+This PR was created automatically when the template was updated." \
+                --head "$BRANCH" 2>/dev/null && echo "  📬 PR created" || echo "  ⚠️  PR creation failed"
+            fi
+            
+            cd ..
+            rm -rf "target-$REPO_NAME"
+          done
+          
+          echo ""
+          echo "=== Sync complete ==="
